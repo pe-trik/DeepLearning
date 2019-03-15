@@ -15,7 +15,7 @@ parser.add_argument("--activation", default="none", type=str, help="Activation f
 parser.add_argument("--batch_size", default=50, type=int, help="Batch size.")
 parser.add_argument("--epochs", default=10, type=int, help="Number of epochs.")
 parser.add_argument("--hidden_layer", default=100, type=int, help="Size of the hidden layer.")
-parser.add_argument("--layers", default=1, type=int, help="Number of layers.")
+parser.add_argument("--layers", default=5, type=int, help="Number of layers.")
 parser.add_argument("--recodex", default=False, action="store_true", help="Evaluation in ReCodEx.")
 parser.add_argument("--threads", default=1, type=int, help="Maximum number of threads to use.")
 args = parser.parse_args()
@@ -38,14 +38,26 @@ args.logdir = "logs/{}-{}-{}".format(
 # Load data
 mnist = MNIST()
 
-# Create the model
-model = tf.keras.Sequential([
+layers = [
     tf.keras.layers.InputLayer((MNIST.H, MNIST.W, MNIST.C)),
     tf.keras.layers.Flatten(),
-    # TODO: Add `args.layers` number of hidden layers with size `args.hidden_layer`,
-    # using activation from `args.activation`, allowing "none", "relu", "tanh", "sigmoid".
-    tf.keras.layers.Dense(MNIST.LABELS, activation=tf.nn.softmax),
-])
+    ]
+
+act = None
+if args.activation == "relu":
+    act = tf.nn.relu
+elif args.activation == "tanh":
+    act = tf.nn.tanh
+elif args.activation == "sigmoid":
+    act = tf.nn.sigmoid
+
+for i in range(args.layers):
+    layers.append(tf.keras.layers.Dense(args.hidden_layer, activation=act))
+
+layers.append(tf.keras.layers.Dense(MNIST.LABELS, activation=tf.nn.softmax))
+
+# Create the model
+model = tf.keras.Sequential(layers)
 
 model.compile(
     optimizer=tf.keras.optimizers.Adam(),
@@ -66,6 +78,11 @@ test_logs = model.evaluate(
     mnist.test.data["images"], mnist.test.data["labels"], batch_size=args.batch_size,
 )
 tb_callback.on_epoch_end(1, dict(("test_" + metric, value) for metric, value in zip(model.metrics_names, test_logs)))
+
+accuracy = 0
+for metric, value in zip(model.metrics_names, test_logs):
+    if metric == 'sparse_categorical_accuracy':
+        accuracy = value
 
 # TODO: Write test accuracy as percentages rounded to two decimal places.
 with open("mnist_layers_activations.out", "w") as out_file:
