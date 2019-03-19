@@ -62,8 +62,42 @@ model = tf.keras.Sequential([
 # by using `model.optimizer.learning_rate(model.optimizer.iterations)`,
 # so after training this value should be `args.learning_rate_final`.
 
+schedule = None
+if args.decay == 'polynomial':
+    schedule = tf.keras.optimizers.schedules.PolynomialDecay(
+        initial_learning_rate=args.learning_rate,
+        decay_steps=args.epochs*len(mnist.train.data["labels"])/args.batch_size,
+        end_learning_rate=args.learning_rate_final
+    )
+elif args.decay == 'exponential':
+    decay_rate = args.learning_rate_final/args.learning_rate
+    schedule = tf.keras.optimizers.schedules.ExponentialDecay(
+        initial_learning_rate=args.learning_rate,
+        decay_steps=args.epochs*len(mnist.train.data["labels"])/args.batch_size,
+        decay_rate=decay_rate
+        )
+
+optimizer = None
+if args.optimizer == 'Adam':
+    if args.decay == None:
+        optimizer = tf.keras.optimizers.Adam(learning_rate=args.learning_rate)
+    else:
+        optimizer = tf.keras.optimizers.Adam(learning_rate=schedule)
+
+elif args.optimizer == 'SGD':
+    if args.momentum != None:
+        if args.decay == None:
+            optimizer = tf.keras.optimizers.SGD(momentum=args.momentum,learning_rate=args.learning_rate)
+        else:
+            optimizer = tf.keras.optimizers.SGD(momentum=args.momentum,learning_rate=schedule)
+    else:
+        if args.decay == None:
+            optimizer = tf.keras.optimizers.SGD(learning_rate=args.learning_rate)
+        else:
+            optimizer = tf.keras.optimizers.SGD(learning_rate=schedule)
+
 model.compile(
-    optimizer=None,
+    optimizer=optimizer,
     loss=tf.keras.losses.SparseCategoricalCrossentropy(),
     metrics=[tf.keras.metrics.SparseCategoricalAccuracy()],
 )
@@ -81,6 +115,11 @@ test_logs = model.evaluate(
     mnist.test.data["images"], mnist.test.data["labels"], batch_size=args.batch_size,
 )
 tb_callback.on_epoch_end(1, dict(("val_test_" + metric, value) for metric, value in zip(model.metrics_names, test_logs)))
+
+accuracy = 0
+for metric, value in zip(model.metrics_names, test_logs):
+    if metric == 'sparse_categorical_accuracy':
+        accuracy = value
 
 # TODO: Write test accuracy as percentages rounded to two decimal places.
 with open("mnist_training.out", "w") as out_file:
