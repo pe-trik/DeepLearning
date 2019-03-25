@@ -1,4 +1,15 @@
 #!/usr/bin/env python3
+#
+# All team solutions **must** list **all** members of the team.
+# The members must be listed using their ReCodEx IDs anywhere
+# in a comment block in the source file (on a line beginning with `#`).
+#
+# You can find out ReCodEx ID in the URL bar after navigating
+# to your User profile page. The ID has the following format:
+# 55d46f86-b962-11e7-a937-00505601122b
+# 4fc059fa-abd2-11e7-a937-00505601122b
+# be28f437-a9b0-11e7-a937-00505601122b
+
 import argparse
 import datetime
 import os
@@ -6,8 +17,9 @@ import re
 
 import numpy as np
 import tensorflow as tf
-
+ 
 from mnist import MNIST
+
 
 # Parse arguments
 parser = argparse.ArgumentParser()
@@ -45,6 +57,11 @@ mnist = MNIST()
 # and use it for all kernels and biases of all Dense layers. Note that
 # because of a bug if `args.l2` is zero, use `None` instead of `L1L2` regularizer
 # with zero l2.
+if args.l2 != 0:
+    regularization = tf.keras.regularizers.L1L2(l2=args.l2)
+else:
+    regularization = None
+
 
 # TODO: Implement dropout.
 # Add a `tf.keras.layers.Dropout` with `args.dropout` rate after the Flatten
@@ -53,9 +70,22 @@ mnist = MNIST()
 # Create the model
 model = tf.keras.Sequential()
 model.add(tf.keras.layers.Flatten(input_shape=[MNIST.H, MNIST.W, MNIST.C]))
+if args.dropout!=0:
+    model.add(tf.keras.layers.Dropout(rate=args.dropout))
 for hidden_layer in args.hidden_layers:
-    model.add(tf.keras.layers.Dense(hidden_layer, activation=tf.nn.relu))
-model.add(tf.keras.layers.Dense(MNIST.LABELS))
+    model.add(tf.keras.layers.Dense(hidden_layer, 
+                                    activation=tf.nn.relu,
+                                    kernel_regularizer=regularization,
+                                    bias_regularizer=regularization 
+                                    )
+              )
+    if args.dropout!=0:
+        model.add(tf.keras.layers.Dropout(rate=args.dropout))
+model.add(tf.keras.layers.Dense(MNIST.LABELS,
+                                    kernel_regularizer=regularization,
+                                    bias_regularizer=regularization 
+                                    )
+          )
 
 # TODO: Implement label smoothing.
 # Apply the given smoothing. You will need to change the
@@ -66,10 +96,14 @@ model.add(tf.keras.layers.Dense(MNIST.LABELS))
 # to a full categorical distribution (you can use either NumPy or there is
 # a helper method also in the Keras API).
 
+mnist.train.data["labels"] = tf.keras.utils.to_categorical(mnist.train.data["labels"])
+mnist.dev.data["labels"] = tf.keras.utils.to_categorical(mnist.dev.data["labels"])
+mnist.test.data["labels"] = tf.keras.utils.to_categorical(mnist.test.data["labels"])
+
 model.compile(
     optimizer=tf.keras.optimizers.Adam(),
-    loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-    metrics=[tf.keras.metrics.SparseCategoricalAccuracy(name="accuracy")],
+    loss=tf.keras.losses.CategoricalCrossentropy(from_logits=True, label_smoothing=args.label_smoothing),
+    metrics=[tf.keras.metrics.CategoricalAccuracy(name="accuracy")],
 )
 
 tb_callback=tf.keras.callbacks.TensorBoard(args.logdir, update_freq=1000, profile_batch=1)
@@ -87,3 +121,4 @@ tb_callback.on_epoch_end(1, dict(("val_test_" + metric, value) for metric, value
 accuracy = test_logs[model.metrics_names.index("accuracy")]
 with open("mnist_regularization.out", "w") as out_file:
     print("{:.2f}".format(100 * accuracy), file=out_file)
+

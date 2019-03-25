@@ -1,4 +1,7 @@
-#!/usr/bin/env python3
+# 55d46f86-b962-11e7-a937-00505601122b
+# 4fc059fa-abd2-11e7-a937-00505601122b
+# be28f437-a9b0-11e7-a937-00505601122b
+
 import argparse
 
 import numpy as np
@@ -51,29 +54,61 @@ for model in range(args.models):
     )
     print("Done")
 
+
 with open("mnist_ensemble.out", "w") as out_file:
     for model in range(args.models):
         # TODO: Compute the accuracy on the dev set for
         # the individual `models[model]`.
-        individual_accuracy = None
 
-        # TODO: Compute the accuracy on the dev set for
-        # the ensemble `models[0:model+1].
-        #
-        # Generally you can choose one of the following approaches:
-        # 1) Use Keras Functional API and construct a tf.keras.Model
-        #    which averages the models in the ensemble (using
-        #    tf.keras.layers.Average). Then you can compile the model
-        #    with the required metric and use `model.evaluate`.
-        #    Note that there is currently a bug which triggers if
-        #    the model metric names collide, so your ensemble model must
-        #    use different metric name than "individual_accuracy".
-        # 2) Manually perform the averaging using NumPy. In this case
-        #    you do not need to construct Keras ensemble model at all,
-        #    and instead call `model.predict` on individual models and
-        #    average the results. To measure accuracy, either do it completely
-        #    manually or use tf.keras.metrics.SparseCategoricalAccuracy.
-        ensemble_accuracy = None
+        #TODO: Compute the accuracy on the dev set for
+        #the ensemble `models[0:model+1].
+        
+        #Generally you can choose one of the following approaches:
+        #1) Use Keras Functional API and construct a tf.keras.Model
+        #   which averages the models in the ensemble (using
+        #   tf.keras.layers.Average). Then you can compile the model
+        #   with the required metric and use `model.evaluate`.
+        #   Note that there is currently a bug which triggers if
+        #   the model metric names collide, so your ensemble model must
+        #   use different metric name than "individual_accuracy".
+        #2) Manually perform the averaging using NumPy. In this case
+        #   you do not need to construct Keras ensemble model at all,
+        #   and instead call `model.predict` on individual models and
+        #   average the results. To measure accuracy, either do it completely
+        #   manually or use tf.keras.metrics.SparseCategoricalAccuracy.
+
+        predictions = []
+        for m in range(model + 1):
+            predictions.append(models[m].predict(mnist.dev.data["images"]))
+        prediarray = np.array(predictions, dtype=float)
+        predicted = np.mean(prediarray, axis=0)
+
+        correct = mnist.dev.data["labels"]
+        total = mnist.dev.size
+
+        wrong = 0
+        for i in range(total):
+            maxValue = 0
+            maxIndex = -1
+            for j in range(10):
+                if prediarray[model][i][j] > maxValue:
+                    maxValue = prediarray[model][i][j]
+                    maxIndex = j
+            if (maxIndex != correct[i]):
+                wrong += 1 
+        individual_accuracy = 1 - (wrong / total)
+
+        wrong = 0
+        for i in range(total):
+            maxValue = 0
+            maxIndex = -1
+            for j in range(10):
+                if predicted[i][j] > maxValue:
+                    maxValue = predicted[i][j]
+                    maxIndex = j
+            if (maxIndex != correct[i]):
+                wrong += 1 
+        ensemble_accuracy = 1 - (wrong / total)
 
         # Print the results.
         print("{:.2f} {:.2f}".format(100 * individual_accuracy, 100 * ensemble_accuracy), file=out_file)
