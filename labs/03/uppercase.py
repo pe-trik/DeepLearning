@@ -140,6 +140,7 @@ model.fit(
 #   You can then flatten the one-hot encoded windows and follow with a dense layer.
 # - Alternatively, you can use `tf.keras.layers.Embedding`, which is an efficient
 #   implementation of one-hot encoding followed by a Dense layer, and flatten afterwards.
+<<<<<<< HEAD
 import io
 with io.open("uppercase_test.txt", "w", encoding="utf-8") as out_file:
     results = np.argmax(model.predict(uppercase_data.test.data["windows"]), axis=1)
@@ -148,6 +149,10 @@ with io.open("uppercase_test.txt", "w", encoding="utf-8") as out_file:
         if results[i]==1:
             ch = ch.upper()
         out_file.write(ch)
+=======
+
+with open("uppercase_test.txt", "w", encoding="utf-8") as out_file:
+>>>>>>> b8c7da9b9c5cb34314d1bbf65825ed2e9266c9a0
     # TODO: Generate correctly capitalized test set.
     # Use `uppercase_data.test.text` as input, capitalize suitable characters,
     #    # and write the result to `uppercase_test.txt` file.
