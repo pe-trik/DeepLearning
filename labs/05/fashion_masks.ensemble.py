@@ -2,6 +2,7 @@
 # 55d46f86-b962-11e7-a937-00505601122b
 # 4fc059fa-abd2-11e7-a937-00505601122b
 # be28f437-a9b0-11e7-a937-00505601122b
+#import numpy as np
 import tensorflow as tf
 import numpy as np
 from keras import backend as K
@@ -138,35 +139,73 @@ if __name__ == "__main__":
 
     # Load data
     fashion_masks = FashionMasks()
-    fashion_masks.dev.data["images"] = standardize_images(fashion_masks.dev.data["images"])
-    fashion_masks.test.data["images"] = standardize_images(fashion_masks.test.data["images"])
-    fashion_masks.train.data["images"] = standardize_images(fashion_masks.train.data["images"])
-
-    for i in range(len(fashion_masks.train.data['images'])):
-        x0 = np.random.randint(0,high=28)
-        y0 = np.random.randint(0,high=28)
-        for x in range(-7,7):
-            for y in range(-7,7):
-                if x0 + x < 28 and y0 + y < 28 and x0 + x > 0 and y0 + y > 0:
-                    fashion_masks.train.data["images"][i][x0 + x][y0 + y] = 0
-
     # Create the network and train
     network = Network(args)
 
-    network.train(fashion_masks, args)
+    #network.train(fashion_masks, args)
     #network.save('model.md5')
-    #network.load_weights('model.md5')
+    maxi = 0
+    maxiou = 0
+    gold = getattr(FashionMasks(), 'test')
+    gold_labels = gold.data["labels"]
+    gold_masks = gold.data["masks"]
 
+    network.load_weights('model_19.md5')
+    fashion_masks.test.data["images"] = standardize_images(fashion_masks.test.data["images"])
+    labels, masks = network.predict(fashion_masks.test.data['images'], batch_size=64)
+    c = 0
+    v = np.vectorize(lambda x:(x>=0.5)*1)
+    labels = np.argmax(labels, 1)
+    labels = np.eye(10)[labels]
+    masks = v(masks)
+    '''for i in range(40,49):
+        network.load_weights('models1/model_{}.md5'.format(i))
+        l, m = network.predict(fashion_masks.dev.data['images'], batch_size=64)
+        labels = labels + np.eye(10)[np.argmax(l, 1)]
 
+    for i in range(19,29):
+        network.load_weights('model_{}.md5'.format(i))
+        l, m = network.predict(fashion_masks.dev.data['images'], batch_size=64)
+        labels = labels + np.eye(10)[np.argmax(l, 1)]
+        masks = masks + v(m)
+        c += 1''
+    
 
-    # Predict test data in args.logdir
+    masks = masks / c'''
+
     with open("fashion_masks_test.txt", "w", encoding="utf-8") as out_file:
-        # TODO: Predict labels and masks on fashion_masks.test.data["images"],
-        # into test_labels and test_masks (test_masks is assumed to be
-        # a Numpy array with values 0/1).
-            l, m = network.predict(fashion_masks.dev.data['images'], batch_size=32)
-            
-            for label, mask in zip(l, m):
-                lab = np.argmax(label)
-                ms = np.array(list(map(lambda x: x>=0.5, mask)))
-                print(lab, *ms.astype(np.uint8).flatten(), file=out_file)
+            # TODO: Predict labels and masks on fashion_masks.test.data["images"],
+            # into test_labels and test_masks (test_masks is assumed to be
+            # a Numpy array with values 0/1).
+                
+                for label, mask in zip(labels, masks):
+                    lab = np.argmax(label)
+                    ms = np.array(list(map(lambda x: (x>=0.5)*1, mask)))
+                    print(lab, *ms.astype(np.uint8).flatten(), file=out_file)
+
+
+    with open('fashion_masks_test.txt', "r", encoding="utf-8") as system_file:
+        system = system_file.readlines()
+
+        if len(system) != len(gold_labels):
+            raise RuntimeError("The system output and gold data differ in size: {} vs {}.".format(
+                len(system), len(gold_labels)))
+
+        iou = 0
+        c = 0
+        for i in range(len(gold_labels)):
+            system_label, *system_mask = map(int, system[i].split())
+            if system_label == gold_labels[i]:
+                c += 1
+                system_mask = np.array(system_mask, dtype=gold_masks[i].dtype).reshape(gold_masks[i].shape)
+                system_pixels = np.sum(system_mask)
+                gold_pixels = np.sum(gold_masks[i])
+                intersection_pixels = np.sum(system_mask * gold_masks[i])
+                iou += intersection_pixels / (system_pixels + gold_pixels - intersection_pixels)
+        if iou > maxiou:
+            maxiou = iou
+            maxi = i
+        print("{:.3f} {:.3f}".format(100 * iou / len(gold_labels), c / len(gold_labels)))
+
+        print(maxi)
+        print(maxiou)
